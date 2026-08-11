@@ -1,52 +1,52 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
+const useSsl = process.env.PG_SSL === 'true' || isProduction;
+
 // Create a PostgreSQL connection pool using environment variables or defaults
-const pool = new Pool({
+const poolConfig = {
   host: process.env.PG_HOST || 'localhost',
   port: process.env.PG_PORT || 5432,
   database: process.env.PG_DATABASE || 'geokeeper_db',
   user: process.env.PG_USER || 'postgres',
   password: process.env.PG_PASSWORD || 'postgres',
-  ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false
-});
+  ssl: useSsl ? { rejectUnauthorized: false } : false,
+  connectionTimeoutMillis: 5000
+};
 
-// Test connection and create table
-pool.connect((err, client, release) => {
-  if (err) {
-    console.error('⚠️ PostgreSQL connection error:', err.stack);
-  } else {
-    console.log('✅ Connected to PostgreSQL database!');
-    initPostgresDatabase(client, release);
+const pool = new Pool(poolConfig);
+
+// Test connection and auto-create table safely
+let isTableInitialized = false;
+async function ensureTableCreated() {
+  if (isTableInitialized) return;
+  try {
+    const createTableQuery = `
+      CREATE TABLE IF NOT EXISTS saved_places (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        latitude DOUBLE PRECISION NOT NULL,
+        longitude DOUBLE PRECISION NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        rating DOUBLE PRECISION DEFAULT 5.0,
+        "isFavorite" BOOLEAN DEFAULT FALSE,
+        address TEXT,
+        "imagePath" TEXT,
+        "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
+    await pool.query(createTableQuery);
+    isTableInitialized = true;
+    console.log('✅ PostgreSQL table "saved_places" ready.');
+  } catch (err) {
+    console.error('⚠️ PostgreSQL table init warning:', err.message);
   }
-});
-
-function initPostgresDatabase(client, release) {
-  const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS saved_places (
-      id VARCHAR(255) PRIMARY KEY,
-      name VARCHAR(255) NOT NULL,
-      description TEXT,
-      latitude DOUBLE PRECISION NOT NULL,
-      longitude DOUBLE PRECISION NOT NULL,
-      category VARCHAR(100) NOT NULL,
-      rating DOUBLE PRECISION DEFAULT 5.0,
-      "isFavorite" BOOLEAN DEFAULT FALSE,
-      address TEXT,
-      "imagePath" TEXT,
-      "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-  `;
-
-  client.query(createTableQuery, (err, res) => {
-    release();
-    if (err) {
-      console.error('Error creating PostgreSQL saved_places table:', err.message);
-    } else {
-      console.log('PostgreSQL table "saved_places" is ready.');
-    }
-  });
 }
+
+// Trigger initial table check
+ensureTableCreated();
 
 // PostgreSQL promise helper functions
 const getAllPlaces = async () => {

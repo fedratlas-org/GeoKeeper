@@ -48,6 +48,19 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
+// Root endpoint for Vercel server status
+app.get('/', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'GeoKeeper Backend REST API Server is running on Vercel!',
+    endpoints: {
+      health: '/api/health',
+      places: '/api/places'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -179,19 +192,24 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
   });
 });
 
-// Start Express Server
-const server = app.listen(PORT, () => {
-  console.log(`=================================================`);
-  console.log(`🚀 GeoKeeper Backend Server running at http://localhost:${PORT}`);
-  console.log(`   - Health check: http://localhost:${PORT}/api/health`);
-  console.log(`   - REST Endpoints: http://localhost:${PORT}/api/places`);
-  console.log(`=================================================`);
-});
+// Start Express Server locally (skipped in Vercel Serverless environment)
+if (!process.env.VERCEL) {
+  const server = app.listen(PORT, () => {
+    console.log(`=================================================`);
+    console.log(`🚀 GeoKeeper Backend Server running at http://localhost:${PORT}`);
+    console.log(`   - Health check: http://localhost:${PORT}/api/health`);
+    console.log(`   - REST Endpoints: http://localhost:${PORT}/api/places`);
+    console.log(`=================================================`);
+  });
 
-server.on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.log(`⚠️ Port ${PORT} is already in use — the GeoKeeper Backend Server is ALREADY running!`);
-  } else {
-    console.error('Server error:', err);
-  }
-});
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`⚠️ Port ${PORT} is already in use — the GeoKeeper Backend Server is ALREADY running!`);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+}
+
+// Export Express app for Vercel Serverless Functions
+module.exports = app;
