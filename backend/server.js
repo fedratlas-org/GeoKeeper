@@ -70,23 +70,10 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', async (req, res) => {
-  let dbStatus = { connected: false };
-  if (usePostgres) {
-    try {
-      const dbModule = require('./db_postgres');
-      if (dbModule.checkDbConnection) {
-        dbStatus = await dbModule.checkDbConnection();
-      }
-    } catch (e) {
-      dbStatus = { connected: false, error: e.message };
-    }
-  }
+app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
     message: 'GeoKeeper Backend API Server is running smoothly!',
-    provider: usePostgres ? 'PostgreSQL' : 'SQLite',
-    database: dbStatus,
     timestamp: new Date().toISOString()
   });
 });
@@ -222,7 +209,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Express Server locally (skipped in Vercel Serverless environment)
 if (!process.env.VERCEL) {
   const server = app.listen(PORT, () => {
     console.log(`=================================================`);
@@ -234,12 +220,14 @@ if (!process.env.VERCEL) {
 
   server.on('error', (err) => {
     if (err.code === 'EADDRINUSE') {
-      console.log(`⚠️ Port ${PORT} is already in use — the GeoKeeper Backend Server is ALREADY running!`);
+      console.log(
+        `⚠️ Port ${PORT} is already in use — the GeoKeeper Backend Server is ALREADY running!`
+      );
     } else {
       console.error('Server error:', err);
     }
   });
 }
 
-// Export Express app for Vercel Serverless Functions
+// Export Express app for Vercel Serverless
 module.exports = app;
