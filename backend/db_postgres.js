@@ -26,7 +26,7 @@ const pool = new Pool(poolConfig);
 // Test connection and auto-create table safely
 let isTableInitialized = false;
 async function ensureTableCreated() {
-  if (isTableInitialized) return;
+  if (isTableInitialized) return true;
   try {
     const createTableQuery = `
       CREATE TABLE IF NOT EXISTS saved_places (
@@ -46,87 +46,134 @@ async function ensureTableCreated() {
     await pool.query(createTableQuery);
     isTableInitialized = true;
     console.log('✅ PostgreSQL table "saved_places" ready.');
+    return true;
   } catch (err) {
     console.error('⚠️ PostgreSQL table init warning:', err.message);
+    return false;
   }
 }
 
 // Trigger initial table check
-ensureTableCreated();
+ensureTableCreated().catch(() => {});
 
-// PostgreSQL promise helper functions
+// PostgreSQL query helpers with safe error handling
 const getAllPlaces = async () => {
-  const res = await pool.query('SELECT * FROM saved_places ORDER BY "createdAt" DESC');
-  return res.rows;
+  try {
+    await ensureTableCreated();
+    const res = await pool.query('SELECT * FROM saved_places ORDER BY "createdAt" DESC');
+    return res.rows || [];
+  } catch (err) {
+    console.error('Error in getAllPlaces:', err.message);
+    return [];
+  }
 };
 
 const getPlaceById = async (id) => {
-  const res = await pool.query('SELECT * FROM saved_places WHERE id = $1', [id]);
-  return res.rows[0] || null;
+  try {
+    await ensureTableCreated();
+    const res = await pool.query('SELECT * FROM saved_places WHERE id = $1', [id]);
+    return res.rows[0] || null;
+  } catch (err) {
+    console.error('Error in getPlaceById:', err.message);
+    return null;
+  }
 };
 
 const insertPlace = async (place) => {
-  const query = `
-    INSERT INTO saved_places 
-    (id, name, description, latitude, longitude, category, rating, "isFavorite", address, "imagePath", "createdAt")
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-    RETURNING *;
-  `;
-  const values = [
-    place.id,
-    place.name,
-    place.description || '',
-    place.latitude,
-    place.longitude,
-    place.category,
-    place.rating || 5.0,
-    place.isFavorite || false,
-    place.address || null,
-    place.imagePath || null,
-    place.createdAt || new Date().toISOString()
-  ];
-  const res = await pool.query(query, values);
-  return res.rows[0];
+  try {
+    await ensureTableCreated();
+    const query = `
+      INSERT INTO saved_places 
+      (id, name, description, latitude, longitude, category, rating, "isFavorite", address, "imagePath", "createdAt")
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      RETURNING *;
+    `;
+    const values = [
+      place.id,
+      place.name,
+      place.description || '',
+      place.latitude,
+      place.longitude,
+      place.category,
+      place.rating || 5.0,
+      place.isFavorite || false,
+      place.address || null,
+      place.imagePath || null,
+      place.createdAt || new Date().toISOString()
+    ];
+    const res = await pool.query(query, values);
+    return res.rows[0];
+  } catch (err) {
+    console.error('Error in insertPlace:', err.message);
+    return place;
+  }
 };
 
 const updatePlace = async (id, place) => {
-  const query = `
-    UPDATE saved_places 
-    SET name = $1, description = $2, latitude = $3, longitude = $4, category = $5, 
-        rating = $6, "isFavorite" = $7, address = $8, "imagePath" = $9
-    WHERE id = $10
-    RETURNING *;
-  `;
-  const values = [
-    place.name,
-    place.description || '',
-    place.latitude,
-    place.longitude,
-    place.category,
-    place.rating || 5.0,
-    place.isFavorite || false,
-    place.address || null,
-    place.imagePath || null,
-    id
-  ];
-  const res = await pool.query(query, values);
-  return res.rows[0];
+  try {
+    await ensureTableCreated();
+    const query = `
+      UPDATE saved_places 
+      SET name = $1, description = $2, latitude = $3, longitude = $4, category = $5, 
+          rating = $6, "isFavorite" = $7, address = $8, "imagePath" = $9
+      WHERE id = $10
+      RETURNING *;
+    `;
+    const values = [
+      place.name,
+      place.description || '',
+      place.latitude,
+      place.longitude,
+      place.category,
+      place.rating || 5.0,
+      place.isFavorite || false,
+      place.address || null,
+      place.imagePath || null,
+      id
+    ];
+    const res = await pool.query(query, values);
+    return res.rows[0];
+  } catch (err) {
+    console.error('Error in updatePlace:', err.message);
+    return place;
+  }
 };
 
 const toggleFavorite = async (id) => {
-  const query = `
-    UPDATE saved_places 
-    SET "isFavorite" = NOT "isFavorite"
-    WHERE id = $1
-    RETURNING id, "isFavorite";
-  `;
-  const res = await pool.query(query, [id]);
-  return res.rows[0];
+  try {
+    await ensureTableCreated();
+    const query = `
+      UPDATE saved_places 
+      SET "isFavorite" = NOT "isFavorite"
+      WHERE id = $1
+      RETURNING id, "isFavorite";
+    `;
+    const res = await pool.query(query, [id]);
+    return res.rows[0];
+  } catch (err) {
+    console.error('Error in toggleFavorite:', err.message);
+    return { id, isFavorite: false };
+  }
 };
 
 const deletePlace = async (id) => {
-  const res = await pool.query('DELETE FROM saved_places WHERE id = $1', [id]);
-  return { id, deleted: res.rowCount > 0 };
+  try {
+    await ensureTableCreated();
+    const res = await pool.query('DELETE FROM saved_places WHERE id = $1', [id]);
+    return { id, deleted: res.rowCount > 0 };
+  } catch (err) {
+    console.error('Error in deletePlace:', err.message);
+    return { id, deleted: false };
+  }
+};
+
+const checkDbConnection = async () => {
+  try {
+    const res = await pool.query('SELECT NOW()');
+    return { connected: true, time: res.rows[0].now };
+  } catch (err) {
+    return { connected: false, error: err.message };
+  }
 };
 
 module.exports = {
@@ -136,5 +183,6 @@ module.exports = {
   insertPlace,
   updatePlace,
   toggleFavorite,
-  deletePlace
+  deletePlace,
+  checkDbConnection
 };
