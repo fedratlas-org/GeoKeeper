@@ -4,16 +4,22 @@ require('dotenv').config();
 const isProduction = process.env.VERCEL || process.env.NODE_ENV === 'production';
 const useSsl = process.env.PG_SSL === 'true' || isProduction;
 
-// Create a PostgreSQL connection pool using environment variables or defaults
-const poolConfig = {
-  host: process.env.PG_HOST || 'localhost',
-  port: process.env.PG_PORT || 5432,
-  database: process.env.PG_DATABASE || 'geokeeper_db',
-  user: process.env.PG_USER || 'postgres',
-  password: process.env.PG_PASSWORD || 'postgres',
-  ssl: useSsl ? { rejectUnauthorized: false } : false,
-  connectionTimeoutMillis: 5000
-};
+// Create a PostgreSQL connection pool using DATABASE_URL (Supabase) or individual variables
+const poolConfig = process.env.DATABASE_URL
+  ? {
+      connectionString: process.env.DATABASE_URL,
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 10000
+    }
+  : {
+      host: process.env.PG_HOST || 'localhost',
+      port: process.env.PG_PORT || 5432,
+      database: process.env.PG_DATABASE || 'geokeeper_db',
+      user: process.env.PG_USER || 'postgres',
+      password: process.env.PG_PASSWORD || 'postgres',
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 10000
+    };
 
 const pool = new Pool(poolConfig);
 
