@@ -5,9 +5,17 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 
-// Select database provider: 'postgres' or 'sqlite' (default)
-const usePostgres = process.env.DB_PROVIDER === 'postgres';
+// Select database provider: PostgreSQL for Vercel/Supabase, or SQLite for local dev
+const usePostgres = process.env.VERCEL || process.env.DB_PROVIDER === 'postgres' || Boolean(process.env.DATABASE_URL);
 console.log(`ℹ️ Database Provider: ${usePostgres ? 'PostgreSQL' : 'SQLite'}`);
+
+let dbModule;
+try {
+  dbModule = usePostgres ? require('./db_postgres') : require('./database');
+} catch (e) {
+  console.error('Database module loading fallback:', e.message);
+  dbModule = require('./db_postgres');
+}
 
 const {
   getAllPlaces,
@@ -16,7 +24,7 @@ const {
   updatePlace,
   toggleFavorite,
   deletePlace
-} = usePostgres ? require('./db_postgres') : require('./database');
+} = dbModule;
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -189,6 +197,15 @@ app.post('/api/upload', upload.single('image'), (req, res) => {
     message: 'Image uploaded successfully',
     filename: req.file.filename,
     url: imageUrl
+  });
+});
+
+// Global Express Error Handler Middleware for Vercel
+app.use((err, req, res, next) => {
+  console.error('Unhandled Server Error:', err);
+  res.status(500).json({
+    error: 'Internal Server Error',
+    message: err.message || 'An unexpected error occurred'
   });
 });
 
