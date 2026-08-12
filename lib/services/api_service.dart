@@ -1,116 +1,338 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+
 import '../models/saved_place.dart';
 
 class ApiService {
-  // Live Vercel Cloud Backend API URL
-  static const String baseUrl = 'https://geo-keeper-h4td4u1hg-dinal-peraketiyas-projects.vercel.app/api';
+  // ============================================================
+  // LIVE VERCEL BACKEND
+  // ============================================================
 
-  /// Check backend server health status
+  static const String baseUrl =
+      'https://geo-keeper-h4td4u1hg-dinal-peraketiyas-projects.vercel.app/api';
+
+  // ============================================================
+  // HEALTH CHECK
+  // ============================================================
+
   Future<bool> checkHealth() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/health')).timeout(
-        const Duration(seconds: 4),
-      );
+      final url = Uri.parse('$baseUrl/health');
+
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
+
       if (kDebugMode) {
-        print('Backend health check status: ${response.statusCode}');
+        print('========================================');
+        print('BACKEND HEALTH CHECK');
+        print('URL: $url');
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('========================================');
       }
-      return response.statusCode == 200 && response.body.contains('status');
-    } catch (e) {
+
+      return response.statusCode == 200;
+    } catch (e, stackTrace) {
       if (kDebugMode) {
-        print('Backend server health check failed: $e');
+        print('========================================');
+        print('❌ BACKEND HEALTH CHECK FAILED');
+        print('Error: $e');
+        print(stackTrace);
+        print('========================================');
       }
+
       return false;
     }
   }
 
-  /// Fetch all places from backend API
+  // ============================================================
+  // GET ALL PLACES
+  // ============================================================
+
   Future<List<SavedPlace>> fetchPlaces() async {
     try {
-      final response = await http.get(Uri.parse('$baseUrl/places')).timeout(
-        const Duration(seconds: 5),
-      );
-      if (response.statusCode == 200) {
-        final List<dynamic> jsonList = jsonDecode(response.body);
-        return jsonList.map((json) => SavedPlace.fromJson(json)).toList();
-      }
-    } catch (e) {
+      final url = Uri.parse('$baseUrl/places');
+
       if (kDebugMode) {
-        print('Error fetching places from API: $e');
+        print('========================================');
+        print('📥 FETCHING PLACES');
+        print('GET: $url');
       }
+
+      final response = await http
+          .get(
+            url,
+            headers: {
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (kDebugMode) {
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('========================================');
+      }
+
+      if (response.statusCode != 200) {
+        if (kDebugMode) {
+          print('❌ Failed to fetch places');
+        }
+
+        return [];
+      }
+
+      final decoded = jsonDecode(response.body);
+
+      if (decoded is! List) {
+        if (kDebugMode) {
+          print('❌ API did not return a list');
+        }
+
+        return [];
+      }
+
+      return decoded
+          .map(
+            (json) => SavedPlace.fromJson(
+              Map<String, dynamic>.from(json),
+            ),
+          )
+          .toList();
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('========================================');
+        print('❌ FETCH PLACES ERROR');
+        print('Error: $e');
+        print(stackTrace);
+        print('========================================');
+      }
+
+      return [];
     }
-    return [];
   }
 
-  /// Save a new place to backend API
+  // ============================================================
+  // SAVE NEW PLACE
+  // ============================================================
+
   Future<SavedPlace?> savePlace(SavedPlace place) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/places'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(place.toJson()),
-      ).timeout(const Duration(seconds: 5));
+      final url = Uri.parse('$baseUrl/places');
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        return SavedPlace.fromJson(jsonDecode(response.body));
-      }
-    } catch (e) {
+      final requestBody = jsonEncode(place.toJson());
+
       if (kDebugMode) {
-        print('Error saving place to API: $e');
+        print('');
+        print('========================================');
+        print('📤 SAVING PLACE TO CLOUD');
+        print('POST: $url');
+        print('Request body:');
+        print(requestBody);
+        print('========================================');
       }
+
+      final response = await http
+          .post(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (kDebugMode) {
+        print('');
+        print('========================================');
+        print('📥 CLOUD SAVE RESPONSE');
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('========================================');
+      }
+
+      // Backend returns 201 when a place is successfully created.
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+
+        final savedPlace = SavedPlace.fromJson(
+          Map<String, dynamic>.from(decoded),
+        );
+
+        if (kDebugMode) {
+          print('✅ PLACE SUCCESSFULLY SAVED TO CLOUD');
+          print('Cloud ID: ${savedPlace.id}');
+        }
+
+        return savedPlace;
+      }
+
+      // Print the actual server error.
+      if (kDebugMode) {
+        print('');
+        print('❌ CLOUD SAVE FAILED');
+        print('HTTP Status: ${response.statusCode}');
+        print('Server response: ${response.body}');
+        print('');
+      }
+
+      return null;
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('');
+        print('========================================');
+        print('❌ EXCEPTION WHILE SAVING PLACE');
+        print('Error: $e');
+        print(stackTrace);
+        print('========================================');
+      }
+
+      return null;
     }
-    return null;
   }
 
-  /// Update an existing place in backend API
+  // ============================================================
+  // UPDATE PLACE
+  // ============================================================
+
   Future<SavedPlace?> updatePlace(SavedPlace place) async {
     try {
-      final response = await http.put(
-        Uri.parse('$baseUrl/places/${place.id}'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(place.toJson()),
-      ).timeout(const Duration(seconds: 5));
+      final url = Uri.parse('$baseUrl/places/${place.id}');
+
+      final requestBody = jsonEncode(place.toJson());
+
+      if (kDebugMode) {
+        print('========================================');
+        print('✏️ UPDATING PLACE');
+        print('PUT: $url');
+        print('Request body: $requestBody');
+      }
+
+      final response = await http
+          .put(
+            url,
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: requestBody,
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (kDebugMode) {
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('========================================');
+      }
 
       if (response.statusCode == 200) {
-        return SavedPlace.fromJson(jsonDecode(response.body));
+        return SavedPlace.fromJson(
+          Map<String, dynamic>.from(
+            jsonDecode(response.body),
+          ),
+        );
       }
-    } catch (e) {
+
       if (kDebugMode) {
-        print('Error updating place in API: $e');
+        print('❌ UPDATE FAILED');
       }
+
+      return null;
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ Update error: $e');
+        print(stackTrace);
+      }
+
+      return null;
     }
-    return null;
   }
 
-  /// Toggle favorite status of a place in backend API
+  // ============================================================
+  // TOGGLE FAVORITE
+  // ============================================================
+
   Future<bool> toggleFavorite(String id) async {
     try {
-      final response = await http.patch(
-        Uri.parse('$baseUrl/places/$id/favorite'),
-      ).timeout(const Duration(seconds: 5));
+      final url = Uri.parse('$baseUrl/places/$id/favorite');
+
+      if (kDebugMode) {
+        print('========================================');
+        print('❤️ TOGGLING FAVORITE');
+        print('PATCH: $url');
+      }
+
+      final response = await http
+          .patch(
+            url,
+            headers: {
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (kDebugMode) {
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('========================================');
+      }
 
       return response.statusCode == 200;
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) {
-        print('Error toggling favorite in API: $e');
+        print('❌ Favorite error: $e');
+        print(stackTrace);
       }
+
       return false;
     }
   }
 
-  /// Delete a place from backend API
+  // ============================================================
+  // DELETE PLACE
+  // ============================================================
+
   Future<bool> deletePlace(String id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/places/$id'),
-      ).timeout(const Duration(seconds: 5));
+      final url = Uri.parse('$baseUrl/places/$id');
+
+      if (kDebugMode) {
+        print('========================================');
+        print('🗑️ DELETING PLACE');
+        print('DELETE: $url');
+      }
+
+      final response = await http
+          .delete(
+            url,
+            headers: {
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 15));
+
+      if (kDebugMode) {
+        print('Status: ${response.statusCode}');
+        print('Response: ${response.body}');
+        print('========================================');
+      }
 
       return response.statusCode == 200;
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) {
-        print('Error deleting place from API: $e');
+        print('❌ Delete error: $e');
+        print(stackTrace);
       }
+
       return false;
     }
   }
