@@ -4,16 +4,19 @@ import 'package:http/http.dart' as http;
 import '../models/saved_place.dart';
 
 class ApiService {
-  // Default backend URL for local dev environment
-  static const String baseUrl = 'http://localhost:5000/api';
+  // Live Vercel Cloud Backend API URL
+  static const String baseUrl = 'https://geo-keeper-h4td4u1hg-dinal-peraketiyas-projects.vercel.app/api';
 
   /// Check backend server health status
   Future<bool> checkHealth() async {
     try {
       final response = await http.get(Uri.parse('$baseUrl/health')).timeout(
-        const Duration(seconds: 3),
+        const Duration(seconds: 4),
       );
-      return response.statusCode == 200;
+      if (kDebugMode) {
+        print('Backend health check status: ${response.statusCode}');
+      }
+      return response.statusCode == 200 && response.body.contains('status');
     } catch (e) {
       if (kDebugMode) {
         print('Backend server health check failed: $e');

@@ -77,10 +77,15 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  let dbStatus = { connected: false };
+  if (dbModule && dbModule.checkDbConnection) {
+    dbStatus = await dbModule.checkDbConnection();
+  }
   res.json({
     status: 'OK',
     message: 'GeoKeeper Backend API Server is running smoothly!',
+    database: dbStatus,
     timestamp: new Date().toISOString()
   });
 });

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/saved_place.dart';
@@ -21,10 +22,14 @@ class StorageService {
     // Check if backend server is available
     final isOnline = await _apiService.checkHealth();
     if (isOnline) {
-      final remotePlaces = await _apiService.fetchPlaces();
-      if (remotePlaces.isNotEmpty) {
+      try {
+        final remotePlaces = await _apiService.fetchPlaces();
         await _saveList(prefs, remotePlaces);
         return remotePlaces;
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error fetching places from remote API: $e');
+        }
       }
     }
 
@@ -56,8 +61,14 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     await _saveList(prefs, places);
 
-    // Sync with REST API backend asynchronously
-    _apiService.savePlace(newPlace).catchError((_) => null);
+    // Sync with REST API backend
+    try {
+      await _apiService.savePlace(newPlace);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error syncing new place to backend database: $e');
+      }
+    }
 
     return places;
   }
@@ -72,7 +83,13 @@ class StorageService {
       await _saveList(prefs, places);
 
       // Sync update to backend
-      _apiService.updatePlace(updatedPlace).catchError((_) => null);
+      try {
+        await _apiService.updatePlace(updatedPlace);
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error syncing updated place to backend database: $e');
+        }
+      }
     }
     return places;
   }
@@ -85,7 +102,13 @@ class StorageService {
     await _saveList(prefs, places);
 
     // Sync deletion to backend
-    _apiService.deletePlace(id).catchError((_) => false);
+    try {
+      await _apiService.deletePlace(id);
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error syncing place deletion to backend database: $e');
+      }
+    }
 
     return places;
   }
@@ -102,7 +125,13 @@ class StorageService {
       await _saveList(prefs, places);
 
       // Sync favorite toggle to backend
-      _apiService.toggleFavorite(id).catchError((_) => false);
+      try {
+        await _apiService.toggleFavorite(id);
+      } catch (e) {
+        if (kDebugMode) {
+          print('Error syncing favorite status to backend database: $e');
+        }
+      }
     }
     return places;
   }
