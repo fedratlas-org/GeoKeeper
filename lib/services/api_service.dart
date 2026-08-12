@@ -11,7 +11,7 @@ class ApiService {
   // ============================================================
 
   static const String baseUrl =
-      'https://geo-keeper-h4td4u1hg-dinal-peraketiyas-projects.vercel.app/api';
+      'https://geo-keeper-theta.vercel.app/api';
 
   // ============================================================
   // HEALTH CHECK
