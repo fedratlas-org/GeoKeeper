@@ -1,17 +1,45 @@
-# maptwo_app
+# GeoKeeper (`maptwo_app`) 📍
 
-A new Flutter project.
+A modern, feature-packed full-stack location-bookmarking application built with **Flutter**, **Google Maps**, **Node.js/Express**, and **PostgreSQL / SQLite**.
 
-## Getting Started
+---
 
-This project is a starting point for a Flutter application.
+## 🚀 Quick Features
 
-A few resources to get you started if this is your first Flutter project:
+- 🗺️ **Interactive Google Maps**: Save places, add ratings, categories, custom descriptions, and upload photos.
+- ☁️ **Cloud Backend REST API**: Powered by Node.js, Express, and hosted on Vercel Serverless Functions.
+- 🗄️ **Dual Database Architecture**: PostgreSQL for production/cloud and SQLite for offline local development.
+- 📱 **Offline-First Storage**: Seamless local caching using `SharedPreferences` when offline.
+- 📸 **Photo Upload Pipeline**: Support for taking/uploading photos for bookmarked places.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+---
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 📚 Complete Documentation
+
+For comprehensive technical documentation, architecture diagrams, database schemas, API endpoint specifications, and deployment guides, please see:
+
+👉 **[PROJECT_DOCUMENTATION.md](file:///c:/Users/HP/maptwo_app/PROJECT_DOCUMENTATION.md)**
+
+---
+
+## 🛠️ Quick Start
+
+### 1. Backend Server
+```bash
+cd backend
+npm install
+npm start
+```
+Runs backend server at `http://localhost:5000`.
+
+### 2. Flutter Mobile App
+```bash
+flutter pub get
+flutter run
+```
+Runs the mobile app on connected emulator/device.
+
+---
+
+## 📜 License
+Private application repository.

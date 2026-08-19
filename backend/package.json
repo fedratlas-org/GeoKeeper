@@ -1,13 +1,16 @@
 {
   "name": "geokeeper-backend",
   "version": "1.0.0",
-  "description": "REST API Backend server for GeoKeeper Flutter Google Maps App",
+  "description": "REST API Backend server for GeoKeeper Flutter Google Maps App with Fedratlas gRPC Sync Engine",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "proto-server": "node sync_prototype_server.js"
   },
   "dependencies": {
+    "@grpc/grpc-js": "^1.14.4",
+    "@grpc/proto-loader": "^0.7.15",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

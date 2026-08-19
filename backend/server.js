@@ -5,6 +5,8 @@ const cors = require('cors');
 const multer = require('multer');
 const fs = require('fs');
 
+const syncEngine = require('./sync_engine');
+
 // Select database provider: PostgreSQL for Vercel/Supabase, or SQLite for local dev
 const usePostgres = process.env.VERCEL || process.env.DB_PROVIDER === 'postgres' || Boolean(process.env.DATABASE_URL);
 console.log(`ℹ️ Database Provider: ${usePostgres ? 'PostgreSQL' : 'SQLite'}`);
@@ -70,7 +72,8 @@ app.get('/', (req, res) => {
     message: 'GeoKeeper Backend REST API Server is running on Vercel!',
     endpoints: {
       health: '/api/health',
-      places: '/api/places'
+      places: '/api/places',
+      prototypeStatus: '/api/prototype/status'
     },
     timestamp: new Date().toISOString()
   });
@@ -88,6 +91,26 @@ app.get('/api/health', async (req, res) => {
     database: dbStatus,
     timestamp: new Date().toISOString()
   });
+});
+
+// GET /api/prototype/status - Health & Status of Fedratlas gRPC Prototype Backend
+app.get('/api/prototype/status', async (req, res) => {
+  try {
+    const serverId = await syncEngine.getServerID().catch(() => null);
+    const manifest = await syncEngine.getManifest().catch(() => null);
+    const peers = await syncEngine.getPeers().catch(() => null);
+
+    res.json({
+      status: serverId ? 'CONNECTED' : 'DISCONNECTED',
+      grpcHost: process.env.SYNC_ENGINE_GRPC_HOST || 'localhost:50051',
+      serverId: serverId ? serverId.server_id : null,
+      manifest: manifest || null,
+      peers: peers ? peers.peers : [],
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch prototype backend status', details: err.message });
+  }
 });
 
 // GET /api/places - Fetch all saved places
@@ -115,7 +138,7 @@ app.get('/api/places/:id', async (req, res) => {
   }
 });
 
-// POST /api/places - Save a new place
+// POST /api/places - Save a new place (and auto-sync to Fedratlas gRPC prototype backend)
 app.post('/api/places', async (req, res) => {
   try {
     const { id, name, description, latitude, longitude, category, rating, isFavorite, address, imagePath, createdAt } = req.body;
@@ -139,6 +162,12 @@ app.post('/api/places', async (req, res) => {
     };
 
     const saved = await insertPlace(newPlace);
+
+    // Auto-save to Fedratlas gRPC Prototype Backend via OnFeatureChange
+    syncEngine.onFeatureChange('Create', saved).catch(err => {
+      console.warn('⚠️ Sync Engine error on Create:', err.message);
+    });
+
     res.status(201).json(saved);
   } catch (err) {
     console.error('Error inserting place:', err);
@@ -146,7 +175,7 @@ app.post('/api/places', async (req, res) => {
   }
 });
 
-// PUT /api/places/:id - Update place details
+// PUT /api/places/:id - Update place details (and auto-sync to Fedratlas gRPC prototype backend)
 app.put('/api/places/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -169,18 +198,35 @@ app.put('/api/places/:id', async (req, res) => {
       createdAt: existing.createdAt
     };
 
-    await updatePlace(id, updatedPlace);
-    res.json(updatedPlace);
+    const result = await updatePlace(id, updatedPlace);
+    const placeToSync = result || updatedPlace;
+
+    // Auto-save update to Fedratlas gRPC Prototype Backend via OnFeatureChange
+    syncEngine.onFeatureChange('Update', placeToSync).catch(err => {
+      console.warn('⚠️ Sync Engine error on Update:', err.message);
+    });
+
+    res.json(placeToSync);
   } catch (err) {
     console.error('Error updating place:', err);
     res.status(500).json({ error: 'Failed to update place' });
   }
 });
 
-// PATCH /api/places/:id/favorite - Toggle favorite status
+// PATCH /api/places/:id/favorite - Toggle favorite status (and auto-sync to Fedratlas gRPC prototype backend)
 app.patch('/api/places/:id/favorite', async (req, res) => {
   try {
     const result = await toggleFavorite(req.params.id);
+
+    // Fetch full updated place object to sync
+    getPlaceById(req.params.id).then(place => {
+      if (place) {
+        syncEngine.onFeatureChange('Update', place).catch(err => {
+          console.warn('⚠️ Sync Engine error on Favorite toggle:', err.message);
+        });
+      }
+    }).catch(e => console.warn('Could not fetch place for favorite sync:', e.message));
+
     res.json(result);
   } catch (err) {
     console.error('Error toggling favorite:', err);
@@ -188,10 +234,19 @@ app.patch('/api/places/:id/favorite', async (req, res) => {
   }
 });
 
-// DELETE /api/places/:id - Delete a place
+// DELETE /api/places/:id - Delete a place (and auto-sync deletion to Fedratlas gRPC prototype backend)
 app.delete('/api/places/:id', async (req, res) => {
   try {
+    const existing = await getPlaceById(req.params.id);
     const result = await deletePlace(req.params.id);
+
+    if (existing) {
+      // Auto-save deletion to Fedratlas gRPC Prototype Backend via OnFeatureChange
+      syncEngine.onFeatureChange('Delete', existing).catch(err => {
+        console.warn('⚠️ Sync Engine error on Delete:', err.message);
+      });
+    }
+
     res.json(result);
   } catch (err) {
     console.error('Error deleting place:', err);
@@ -225,8 +280,9 @@ if (!process.env.VERCEL) {
   const server = app.listen(PORT, () => {
     console.log(`=================================================`);
     console.log(`🚀 GeoKeeper Backend Server running at http://localhost:${PORT}`);
-    console.log(`   - Health check: http://localhost:${PORT}/api/health`);
-    console.log(`   - REST Endpoints: http://localhost:${PORT}/api/places`);
+    console.log(`   - Health check      : http://localhost:${PORT}/api/health`);
+    console.log(`   - REST Endpoints    : http://localhost:${PORT}/api/places`);
+    console.log(`   - Prototype Status  : http://localhost:${PORT}/api/prototype/status`);
     console.log(`=================================================`);
   });
 
